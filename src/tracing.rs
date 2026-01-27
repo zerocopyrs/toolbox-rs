@@ -58,6 +58,18 @@ macro_rules! error_once {
             ::tracing::error!(file = file!(), line = line!(), "Explicit error");
         }
     }};
+    ($($fmt:tt)*) => {{
+        static TRIGGERED: ::std::sync::atomic::AtomicBool =
+            ::std::sync::atomic::AtomicBool::new(false);
+
+        if !TRIGGERED.swap(true, ::std::sync::atomic::Ordering::Relaxed) {
+            ::tracing::error!(
+                file = file!(),
+                line = line!(),
+                $($fmt)*
+            );
+        }
+    }};
 }
 
 #[macro_export]
@@ -81,12 +93,22 @@ mod tests {
     static TRACING_INIT: OnceLock<()> = OnceLock::new();
 
     #[test]
-    fn error_once_fires() {
+    fn error_once_no_msg() {
         TRACING_INIT.get_or_init(|| {
             let _ = setup_tracing("tests", None);
         });
 
         error_once!();
+    }
+
+    #[test]
+    fn error_once_msg() {
+        TRACING_INIT.get_or_init(|| {
+            let _ = setup_tracing("tests", None);
+        });
+
+        let val = 42;
+        error_once!("Cool message; val={val}");
     }
 
     #[test]
